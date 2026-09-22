@@ -1,0 +1,357 @@
+# Standard Operating Procedures (SOPs) for Outdoor Activity Safety
+# Designed for the MediBuddy Weather-Advisory System.
+#
+# DESIGN NOTE:
+# This file is decoupled from backend control-flow code. The rule engine reads this file
+# dynamically on startup and hot-reloads whenever changes are detected or requested via API.
+# You can add, edit, or adjust rules (including during live review) without modifying code.
+
+metadata:
+  version: "1.4.0"
+  policy_owner: "Clinical & Environmental Safety Governance Team"
+  last_updated: "2026-09-22"
+  description: >
+    Binding Standard Operating Procedures for weather-contingent outdoor activity recommendations.
+    Every recommendation output by the bot must cite at least one active SOP. If no SOP matches,
+    the bot is forbidden from extrapolating advice and must trigger an honest fallback.
+
+# Severity hierarchy for multi-match resolution:
+# CRITICAL (level 3) > WARNING (level 2) > ADVISORY (level 1)
+# When multiple rules trigger, the highest severity rule acts as the primary advisory,
+# and secondary rules are cited as co-applicable warnings.
+
+rules:
+  - id: "SOP-SYS-001"
+    name: "Active Low-Pressure System / Monsoon Deluge Protocol"
+    category: "universal_severe"
+    severity: "critical"
+    target_activities:
+      - "all"
+      - "any"
+      - "general outdoor"
+      - "cycling"
+      - "bike"
+      - "running"
+      - "jogging"
+      - "travel"
+      - "commute"
+      - "picnic"
+      - "hiking"
+      - "park"
+    condition_type: "numeric"
+    conditions:
+      logic: "or"
+      rules:
+        - field: "precipitation"
+          operator: ">="
+          value: 12.0
+        - field: "rain"
+          operator: ">="
+          value: 10.0
+        - field: "weather_code"
+          operator: "in"
+          value: [65, 67, 82] # Heavy rain, heavy freezing rain, violent rain showers
+    guidance: >
+      A well-marked low-pressure or active monsoon rain system is directly impacting this location.
+      All non-essential outdoor activities across all categories should be suspended immediately due
+      to flash waterlogging, severely reduced braking traction, and overhead hazards. Prioritize staying
+      indoors until the meteorological system clears before considering activity-specific plans.
+    action: "suspend_all"
+    precedence: 100
+
+  - id: "SOP-STORM-010"
+    name: "Convective Thunderstorm & Lightning Directive"
+    category: "universal_severe"
+    severity: "critical"
+    target_activities:
+      - "all"
+      - "any"
+      - "outdoor sports"
+      - "golf"
+      - "hiking"
+      - "running"
+      - "cycling"
+      - "park"
+      - "swimming"
+    condition_type: "numeric"
+    conditions:
+      logic: "or"
+      rules:
+        - field: "weather_code"
+          operator: "in"
+          value: [95, 96, 99] # Thunderstorm: slight/moderate, with hail
+    guidance: >
+      Active thunderstorm activity and lightning hazard detected. Suspend all outdoor recreation immediately.
+      Seek shelter inside an enclosed building or hardtop vehicle. Avoid tall trees, open fields, metal fences,
+      and bodies of water. Wait at least 30 minutes following the last audible thunder before resuming outdoor movement.
+    action: "immediate_shelter"
+    precedence: 95
+
+  - id: "SOP-WIND-002"
+    name: "High Wind Gusts Two-Wheeler & Cycling Safety Hazard"
+    category: "outdoor_exercise"
+    severity: "warning"
+    target_activities:
+      - "cycling"
+      - "bike"
+      - "biking"
+      - "bicycle"
+      - "motorcycle"
+      - "scooter"
+      - "two-wheeler"
+      - "ride"
+    condition_type: "numeric"
+    conditions:
+      logic: "or"
+      rules:
+        - field: "wind_speed_10m"
+          operator: ">="
+          value: 38.0 # km/h
+        - field: "wind_gusts_10m"
+          operator: ">="
+          value: 48.0 # km/h
+    guidance: >
+      Sustained winds exceed 38 km/h or gusts exceed 48 km/h. Operating two-wheelers and bicycles presents a severe
+      stability hazard, particularly during sudden lateral cross-gusts near open intersections, flyovers, and large
+      commercial vehicles. Avoid cycling and two-wheeler commuting until winds subside; choose four-wheel or enclosed transit.
+    action: "defer_ride"
+    precedence: 80
+
+  - id: "SOP-UV-003"
+    name: "Extreme Solar UV Radiation & Sunstroke Protocol"
+    category: "vulnerable_groups"
+    severity: "warning"
+    target_activities:
+      - "running"
+      - "jogging"
+      - "walking"
+      - "outdoor exercise"
+      - "sports"
+      - "park"
+      - "children"
+      - "elderly"
+    condition_type: "numeric"
+    conditions:
+      logic: "and"
+      rules:
+        - field: "uv_index"
+          operator: ">="
+          value: 7.5
+    guidance: >
+      Solar UV Index is very high or extreme (>= 7.5). Direct skin exposure carries high risk of solar burns,
+      rapid dehydration, and heat distress. Advise against unprotected outdoor exercise, especially between
+      11:00 AM and 4:00 PM. If outdoor transit is unavoidable, mandate broad-spectrum sunscreen (SPF 50+),
+      protective headwear, UV-blocking eyewear, and reschedule vigorous workouts to dusk or early dawn.
+    action: "restrict_midday_exposure"
+    precedence: 75
+
+  - id: "SOP-HEAT-004"
+    name: "Elevated Heat Index & Vulnerable Cohort Caution"
+    category: "vulnerable_groups"
+    severity: "warning"
+    target_activities:
+      - "elderly"
+      - "seniors"
+      - "infants"
+      - "toddlers"
+      - "walking"
+      - "stroll"
+      - "outdoor exercise"
+    condition_type: "numeric"
+    conditions:
+      logic: "or"
+      rules:
+        - field: "apparent_temperature"
+          operator: ">="
+          value: 37.0 # °C
+        - field: "temperature_2m"
+          operator: ">="
+          value: 39.0 # °C
+    guidance: >
+      Apparent temperature exceeds 37°C. High thermal stress significantly impairs thermoregulation,
+      posing acute dangers of heat exhaustion and cardiac strain for senior citizens and young children.
+      Cancel non-essential outdoor walks for vulnerable individuals and maintain access to climate-controlled,
+      well-hydrated indoor environments.
+    action: "stay_indoors"
+    precedence: 70
+
+  - id: "SOP-COLD-005"
+    name: "Freezing Ambient Wind-Chill & Hypothermia Advisory"
+    category: "vulnerable_groups"
+    severity: "warning"
+    target_activities:
+      - "running"
+      - "walking"
+      - "cycling"
+      - "elderly"
+      - "children"
+      - "pets"
+    condition_type: "numeric"
+    conditions:
+      logic: "or"
+      rules:
+        - field: "apparent_temperature"
+          operator: "<="
+          value: 3.0 # °C
+        - field: "temperature_2m"
+          operator: "<="
+          value: 2.0 # °C
+    guidance: >
+      Apparent temperature is near or below freezing (<= 3°C). Prolonged outdoor exposure risks hypothermia,
+      cold-induced bronchospasm, and numbness. Wear layered thermal insulation with windproof outer shells,
+      protect extremities (ears, hands, feet), and limit continuous outdoor duration for children and seniors.
+    action: "thermal_protection"
+    precedence: 70
+
+  - id: "SOP-PICNIC-006"
+    name: "Composite Lawn & Park Picnic Suitability Assessment"
+    category: "leisure_fuzzy"
+    severity: "advisory"
+    target_activities:
+      - "picnic"
+      - "park gathering"
+      - "lawn"
+      - "outdoor lunch"
+      - "hangout in park"
+      - "sit outside"
+      - "barbecue"
+    condition_type: "fuzzy"
+    # Handled via composite heuristic rather than a single rigid x > y threshold.
+    # Evaluates whether sitting on turf/ground is comfortable based on dampness, cloud cover, breeze, and temp.
+    fuzzy_rules:
+      max_tolerable_rain: 0.2 # mm
+      max_tolerable_wind: 26.0 # km/h
+      ideal_temp_min: 16.0 # °C
+      ideal_temp_max: 31.0 # °C
+      cloud_damp_penalty_threshold: 75 # % cloud cover if damp
+    guidance: >
+      Picnics and park lawn gatherings depend heavily on ground dryness and ambient comfort, not merely rainfall totals.
+      Current conditions indicate damp turf, elevated overcast cover, or uncomfortable drafts that make outdoor seating
+      unpleasant. We recommend shifting your picnic to an open-air covered pavilion or postponing until sunny, dry ground
+      conditions return.
+    positive_guidance: >
+      Weather conditions are currently pleasant and favorable for an outdoor picnic! Temperatures are mild, winds are gentle,
+      and ground moisture risk is minimal. Enjoy the park, but ensure you keep plenty of water on hand.
+    action: "conditional_comfort_check"
+    precedence: 50
+
+  - id: "SOP-COMMUTE-007"
+    name: "Surface Waterlogging & Commute Hydroplaning Advisory"
+    category: "travel_and_commute"
+    severity: "advisory"
+    target_activities:
+      - "commute"
+      - "travel"
+      - "driving"
+      - "car"
+      - "cab"
+      - "bus"
+      - "road trip"
+    condition_type: "numeric"
+    conditions:
+      logic: "or"
+      rules:
+        - field: "precipitation"
+          operator: ">="
+          value: 4.0 # mm
+        - field: "weather_code"
+          operator: "in"
+          value: [55, 61, 63, 80, 81] # Moderate drizzle, rain showers
+    guidance: >
+      Steady precipitation is producing surface water accumulation across road networks. Commuters should expect
+      traffic bottlenecks, reduced vehicular braking distance, and risk of hydroplaning on expressways. Allow 25-40%
+      extra travel time, increase vehicle following distance, and verify road clearance before long journeys.
+    action: "exercise_travel_caution"
+    precedence: 60
+
+  - id: "SOP-FOG-008"
+    name: "Dense Fog & Low Visibility Highway Travel Directive"
+    category: "travel_and_commute"
+    severity: "warning"
+    target_activities:
+      - "driving"
+      - "commute"
+      - "travel"
+      - "highway"
+      - "morning drive"
+      - "road trip"
+    condition_type: "numeric"
+    conditions:
+      logic: "or"
+      rules:
+        - field: "weather_code"
+          operator: "in"
+          value: [45, 48] # Fog, depositing rime fog
+        - logic: "and"
+          rules:
+            - field: "relative_humidity_2m"
+              operator: ">="
+              value: 94
+            - field: "cloud_cover"
+              operator: ">="
+              value: 85
+            - field: "wind_speed_10m"
+              operator: "<="
+              value: 8.0
+    guidance: >
+      Dense radiation fog or low-stratus obscuration is heavily restricting road sightlines. Highway and commuter
+      travel faces severe multi-vehicle collision hazards. Use low-beam headlights and dedicated fog lamps, avoid
+      overtaking on single-lane roads, and postpone non-urgent early morning highway trips until visibility clears.
+    action: "low_visibility_driving"
+    precedence: 75
+
+  - id: "SOP-PET-009"
+    name: "Thermal Asphalt Contact & Canine Paw Protection Advisory"
+    category: "vulnerable_groups"
+    severity: "advisory"
+    target_activities:
+      - "dog"
+      - "pets"
+      - "puppy"
+      - "walking dog"
+      - "pet walk"
+    condition_type: "numeric"
+    conditions:
+      logic: "and"
+      rules:
+        - field: "temperature_2m"
+          operator: ">="
+          value: 29.0 # °C
+        - field: "uv_index"
+          operator: ">="
+          value: 4.5
+    guidance: >
+      When ambient temperatures reach or exceed 29°C with direct solar insolation, dark asphalt surfaces can absorb
+      heat up to 50°C+, causing acute thermal burns to canine paw pads within 60 seconds of contact. Test the pavement
+      with the back of your bare hand for 7 seconds. If it is too hot for your hand, walk pets strictly on shaded grass
+      or delay until pavement cools after sunset.
+    action: "pavement_heat_check"
+    precedence: 55
+
+  - id: "SOP-PLAY-011"
+    name: "Wet Playground Equipment & Pediatric Impact Surface Safety"
+    category: "vulnerable_groups"
+    severity: "advisory"
+    target_activities:
+      - "kids"
+      - "children"
+      - "toddler"
+      - "playground"
+      - "park swings"
+      - "slides"
+    condition_type: "numeric"
+    conditions:
+      logic: "or"
+      rules:
+        - field: "precipitation"
+          operator: ">"
+          value: 0.4
+        - field: "weather_code"
+          operator: "in"
+          value: [51, 53, 61, 80] # Drizzle or rain showers
+    guidance: >
+      Recent or active precipitation creates slippery metal and plastic playground equipment (slides, climbing bars)
+      and hardens rubberized fall surfaces. Pediatric slip-and-fall injuries increase dramatically under wet play conditions.
+      Wipe down equipment before use, ensure children wear rubber-soled closed footwear, and supervise active climbing closely.
+    action: "pediatric_supervision"
+    precedence: 50

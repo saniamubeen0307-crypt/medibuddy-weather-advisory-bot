@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediBuddy • Weather-Advisory Support Bot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Header Navigation -->
+    <header class="navbar">
+      <div class="brand-group">
+        <div class="brand-logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">MediBuddy <span class="badge-tag">Safety Advisory</span></h1>
+          <p class="brand-subtitle">LangGraph Agent • Live Open-Meteo Grounding • Strict SOP Policy Enforcement</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="status-indicator online">
+          <span class="pulse-dot"></span>
+          <span id="telemetryStatus">Live Open-Meteo: Connected</span>
+        </div>
+        <button class="btn btn-outline" id="viewSopsBtn" title="Inspect or add policy rules">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          SOP Rules Inspector (<span id="sopCountBadge">11</span>)
+        </button>
+        <button class="btn btn-secondary" id="resetSessionBtn" title="Clear memory for a new session">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          Reset Session
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Chat Workspace -->
+    <main class="chat-container">
+      <div class="chat-messages" id="chatMessages">
+        <!-- System Welcome Message -->
+        <div class="message-row assistant">
+          <div class="avatar-icon">MB</div>
+          <div class="message-card">
+            <div class="card-header">
+              <span class="card-title">Welcome to MediBuddy Weather-Advisory</span>
+              <span class="pill-badge info">Strict Policy Governance</span>
+            </div>
+            <div class="card-body">
+              <p>
+                I provide safety recommendations for outdoor activities (cycling, running, picnics, children's play, commuting) grounded strictly in <strong>live meteorological telemetry from Open-Meteo</strong> and authorized <strong>Standard Operating Procedures (SOPs)</strong>.
+              </p>
+              <div class="policy-notice-box">
+                <strong>Our Non-Negotiable Safety Rules:</strong>
+                <ul>
+                  <li>Every recommendation cites an official SOP (e.g. <code>[SOP-WIND-002]</code>).</li>
+                  <li>If no policy covers your activity/conditions, I will honestly state <em>"No guidance available"</em> rather than guess.</li>
+                  <li>All temperatures, wind speeds, and precipitation amounts are verified from live API telemetry.</li>
+                  <li>Session context is maintained across turns (ask about cycling in Bhopal, then ask <em>"what about this evening?"</em>).</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Suggestion Prompts -->
+      <div class="prompt-chips-wrapper">
+        <span class="chips-label">Quick Review Scenarios:</span>
+        <div class="prompt-chips">
+          <button class="chip" data-prompt="Is it safe to bike to work in Bhopal today?">🚴 Bike in Bhopal</button>
+          <button class="chip" data-prompt="Can we have an outdoor picnic in Bhopal this afternoon?">🧺 Picnic in Bhopal</button>
+          <button class="chip" data-prompt="Should I take my toddler to the playground in Mumbai right now?">🧒 Toddler Playground</button>
+          <button class="chip" data-prompt="Is it safe for grandmother to go for an afternoon walk in Delhi?">👵 Senior Walk in Delhi</button>
+          <button class="chip" data-prompt="What about this evening instead?">🕒 Follow-up: This evening?</button>
+          <button class="chip" data-prompt="Can I play chess in my living room in Bhopal?">♟️ Benign / No SOP Match</button>
+        </div>
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="chat-input-area">
+        <form id="chatForm" class="chat-form">
+          <div class="input-wrapper">
+            <input
+              type="text"
+              id="userInput"
+              placeholder="Ask an outdoor safety question (e.g., 'Is it safe to cycle in Bhopal today?')..."
+              autocomplete="off"
+              required
+            />
+            <button type="submit" class="btn btn-primary send-btn" id="sendBtn" title="Send message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              <span>Send</span>
+            </button>
+          </div>
+
+          <div class="input-subbar">
+            <label class="simulate-toggle" title="Test how the bot gracefully handles API downtime">
+              <input type="checkbox" id="simulateFailToggle" />
+              <span>Simulate Unreachable Weather API (Eval Test Case)</span>
+            </label>
+            <span class="session-label">Session ID: <strong id="sessionIdLabel">session-active</strong></span>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <!-- SOP Inspector & Live Editor Drawer -->
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+    <aside class="sop-drawer" id="sopDrawer">
+      <div class="drawer-header">
+        <div>
+          <h2>Policy Rules Inspector</h2>
+          <p class="drawer-subtitle">Standard Operating Procedures stored in <code>sops.yaml</code></p>
+        </div>
+        <button class="close-drawer-btn" id="closeDrawerBtn">&times;</button>
+      </div>
+
+      <div class="drawer-tabs">
+        <button class="tab-btn active" data-tab="listTab">Active Rules (<span id="drawerRuleCount">11</span>)</button>
+        <button class="tab-btn" data-tab="addTab">+ Add SOP Live (11th Rule Test)</button>
+      </div>
+
+      <div class="drawer-content">
+        <!-- List Tab -->
+        <div class="tab-pane active" id="listTab">
+          <div id="sopListContainer" class="sop-list-container">
+            <!-- Dynamic SOP cards loaded via JS -->
+            <p class="loading-text">Loading SOP rules from sops.yaml...</p>
+          </div>
+        </div>
+
+        <!-- Add SOP Tab -->
+        <div class="tab-pane" id="addTab">
+          <form id="addSopForm" class="add-sop-form">
+            <div class="form-banner">
+              <strong>Interviewer Live-Test Mode:</strong>
+              Add an additional SOP without modifying any backend code. The rule is written directly to <code>sops.yaml</code> and reloaded instantly.
+            </div>
+
+            <div class="form-group">
+              <label>SOP Identifier *</label>
+              <input type="text" id="newSopId" placeholder="e.g. SOP-ROW-012" required />
+            </div>
+
+            <div class="form-group">
+              <label>Policy Name *</label>
+              <input type="text" id="newSopName" placeholder="e.g. High Water Kayaking & Rowing Safety" required />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Category *</label>
+                <select id="newSopCategory" required>
+                  <option value="outdoor_exercise">Outdoor Exercise</option>
+                  <option value="travel_and_commute">Travel & Commute</option>
+                  <option value="vulnerable_groups">Vulnerable Groups</option>
+                  <option value="universal_severe">Universal Severe</option>
+                  <option value="leisure_fuzzy">Leisure & Fuzzy</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Severity Level *</label>
+                <select id="newSopSeverity" required>
+                  <option value="warning">WARNING (Level 2)</option>
+                  <option value="critical">CRITICAL (Level 3)</option>
+                  <option value="advisory">ADVISORY (Level 1)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Target Activities (comma separated) *</label>
+              <input type="text" id="newSopActivities" placeholder="e.g. kayaking, rowing, boating, canoeing" required />
+            </div>
+
+            <div class="form-group">
+              <label>Weather Trigger Condition</label>
+              <div class="condition-builder-grid">
+                <select id="newCondField">
+                  <option value="wind_speed_10m">Wind Speed (km/h)</option>
+                  <option value="precipitation">Precipitation (mm)</option>
+                  <option value="temperature_2m">Temperature (°C)</option>
+                  <option value="uv_index">UV Index</option>
+                </select>
+                <select id="newCondOp">
+                  <option value=">=">&gt;= (Greater or Equal)</option>
+                  <option value=">">&gt; (Greater Than)</option>
+                  <option value="<=">&lt;= (Less or Equal)</option>
+                </select>
+                <input type="number" step="0.1" id="newCondVal" placeholder="Threshold e.g. 20" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Mandatory Safety Guidance Text *</label>
+              <textarea id="newSopGuidance" rows="3" placeholder="Exact official guidance the bot must deliver..." required></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary full-width" id="saveSopBtn">
+              Save SOP to sops.yaml & Reload Instantly
+            </button>
+          </form>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
